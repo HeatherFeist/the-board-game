@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { Users, Trophy, BookOpen, Settings, User, Vote, Calendar, Award, ChevronRight, Play, Crown, DollarSign, FileText, Target, Briefcase, Heart, PenTool, Megaphone, Code } from 'lucide-react';
+import { useAuth } from './hooks/useAuth';
+import { usePlayer } from './hooks/usePlayer';
+import { AuthModal } from './components/AuthModal';
 
 interface Role {
   id: string;
@@ -391,24 +394,40 @@ const getAvailableScenarios = (roleId: string): Scenario[] => {
 };
 
 function App() {
+  const { user, loading: authLoading, signOut } = useAuth();
+  const { player, badges, completedScenarios, loading: playerLoading, updatePlayerRole, completeScenario } = usePlayer();
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [currentView, setCurrentView] = useState<'welcome' | 'roles' | 'dashboard' | 'scenario'>('welcome');
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
-  const [player, setPlayer] = useState<Player>({
-    id: '1',
-    name: 'Training Participant',
-    currentRole: null,
-    level: 1,
-    experience: 250,
-    badges: ['First Steps', 'Team Player'],
-    completedScenarios: ['stakeholder-meeting']
-  });
 
   const handleRoleSelection = (role: Role) => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
     setSelectedRole(role);
-    setPlayer(prev => ({ ...prev, currentRole: role.id }));
+    updatePlayerRole(role.id);
     setCurrentView('dashboard');
   };
+
+  const handleScenarioComplete = async (scenarioId: string, score: number) => {
+    if (!user || !selectedRole) return;
+    
+    await completeScenario(scenarioId, selectedRole.id, score);
+    setCurrentView('dashboard');
+  };
+
+  if (authLoading || playerLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-600">Loading Board Game...</p>
+        </div>
+      </div>
+    );
+  }
 
   const WelcomePage = () => (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
@@ -465,10 +484,16 @@ function App() {
 
         <div className="text-center">
           <button
-            onClick={() => setCurrentView('roles')}
+            onClick={() => {
+              if (!user) {
+                setShowAuthModal(true);
+              } else {
+                setCurrentView('roles');
+              }
+            }}
             className="bg-gradient-to-r from-blue-500 to-teal-500 hover:from-blue-600 hover:to-teal-600 text-white px-8 py-4 rounded-lg text-lg font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
           >
-            Begin Your Leadership Journey
+            {user ? 'Begin Your Leadership Journey' : 'Sign In to Start Training'}
             <ChevronRight className="w-5 h-5 ml-2 inline-block" />
           </button>
         </div>
@@ -553,17 +578,20 @@ function App() {
               </div>
               <div>
                 <h1 className="text-xl font-semibold text-slate-800">{selectedRole?.title} Dashboard</h1>
-                <p className="text-slate-600 text-sm">Level {player.level} • {player.experience} XP</p>
+                <p className="text-slate-600 text-sm">Level {player?.level || 1} • {player?.experience || 0} XP</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
               <div className="text-right">
                 <p className="text-sm text-slate-600">Welcome back,</p>
-                <p className="font-medium text-slate-800">{player.name}</p>
+                <p className="font-medium text-slate-800">{player?.name || user?.email}</p>
               </div>
-              <div className="bg-slate-100 p-2 rounded-full">
+              <button
+                onClick={() => signOut()}
+                className="bg-slate-100 hover:bg-slate-200 p-2 rounded-full transition-colors"
+              >
                 <User className="w-5 h-5 text-slate-600" />
-              </div>
+              </button>
             </div>
           </div>
         </div>
@@ -575,10 +603,14 @@ function App() {
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8">
               <h2 className="text-lg font-semibold text-slate-800 mb-4">Available Scenarios</h2>
               <div className="space-y-4">
-                {getAvailableScenarios(selectedRole?.id || '').map((scenario) => (
+                {getAvailableScenarios(selectedRole?.id || '').map((scenario) => {
+                  const isCompleted = completedScenarios.some(cs => cs.scenario_id === scenario.id);
+                  return (
                   <div 
                     key={scenario.id}
-                    className="border border-slate-200 rounded-lg p-4 hover:bg-slate-50 cursor-pointer transition-colors group"
+                    className={`border border-slate-200 rounded-lg p-4 hover:bg-slate-50 cursor-pointer transition-colors group ${
+                      isCompleted ? 'bg-green-50 border-green-200' : ''
+                    }`}
                     onClick={() => {
                       setSelectedScenario(scenario);
                       setCurrentView('scenario');
@@ -596,7 +628,7 @@ function App() {
                           }`}>
                             {scenario.type}
                           </span>
-                          {player.completedScenarios.includes(scenario.id) && (
+                          {isCompleted && (
                             <Award className="w-4 h-4 text-green-500 ml-2" />
                           )}
                         </div>
@@ -609,7 +641,8 @@ function App() {
                       <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-500 transition-colors ml-4" />
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -645,19 +678,19 @@ function App() {
                 <div>
                   <div className="flex justify-between text-sm mb-2">
                     <span className="text-slate-600">Level Progress</span>
-                    <span className="font-medium text-slate-800">{player.experience}/500 XP</span>
+                    <span className="font-medium text-slate-800">{player?.experience || 0}/500 XP</span>
                   </div>
                   <div className="w-full bg-slate-200 rounded-full h-2">
                     <div 
                       className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${(player.experience / 500) * 100}%` }}
+                      style={{ width: `${((player?.experience || 0) / 500) * 100}%` }}
                     />
                   </div>
                 </div>
                 <div>
                   <p className="text-sm text-slate-600 mb-2">Scenarios Completed</p>
                   <p className="text-2xl font-bold text-slate-800">
-                    {player.completedScenarios.length}/{selectedRole ? getAvailableScenarios(selectedRole.id).length : 0}
+                    {completedScenarios.length}/{selectedRole ? getAvailableScenarios(selectedRole.id).length : 0}
                   </p>
                 </div>
               </div>
@@ -666,12 +699,17 @@ function App() {
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
               <h3 className="font-semibold text-slate-800 mb-4">Badges Earned</h3>
               <div className="grid grid-cols-2 gap-3">
-                {player.badges.map((badge, index) => (
-                  <div key={index} className="bg-gradient-to-br from-blue-50 to-teal-50 p-3 rounded-lg border border-blue-200">
+                {badges.map((badge) => (
+                  <div key={badge.id} className="bg-gradient-to-br from-blue-50 to-teal-50 p-3 rounded-lg border border-blue-200">
                     <Award className="w-5 h-5 text-blue-600 mb-2" />
-                    <p className="text-xs font-medium text-slate-800">{badge}</p>
+                    <p className="text-xs font-medium text-slate-800">{badge.badge_name}</p>
                   </div>
                 ))}
+                {badges.length === 0 && (
+                  <div className="col-span-2 text-center py-4">
+                    <p className="text-sm text-slate-500">Complete scenarios to earn badges!</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -771,6 +809,7 @@ function App() {
 
   return (
     <div className="font-sans">
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
       {currentView === 'welcome' && <WelcomePage />}
       {currentView === 'roles' && <RoleSelectionPage />}
       {currentView === 'dashboard' && <DashboardPage />}
