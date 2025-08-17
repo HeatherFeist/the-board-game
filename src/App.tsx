@@ -415,7 +415,17 @@ function App() {
     if (!user || !selectedRole) return;
     
     await completeScenario(scenarioId, selectedRole.id, score);
+    setSelectedScenario(null);
     setCurrentView('dashboard');
+  };
+
+  const handleStartScenario = () => {
+    if (!selectedScenario || !selectedRole) return;
+    
+    // For now, simulate completing the scenario with a random score
+    // In a real implementation, this would start the interactive scenario
+    const score = Math.floor(Math.random() * 5) + 1; // Random score 1-5
+    handleScenarioComplete(selectedScenario.id, score);
   };
 
   if (authLoading || playerLoading) {
@@ -793,7 +803,10 @@ function App() {
             </div>
 
             <div className="text-center">
-              <button className="bg-gradient-to-r from-blue-500 to-teal-500 hover:from-blue-600 hover:to-teal-600 text-white px-8 py-3 rounded-lg font-semibold transition-all duration-300 shadow-lg hover:shadow-xl">
+              <button 
+                onClick={handleStartScenario}
+                className="bg-gradient-to-r from-blue-500 to-teal-500 hover:from-blue-600 hover:to-teal-600 text-white px-8 py-3 rounded-lg font-semibold transition-all duration-300 shadow-lg hover:shadow-xl"
+              >
                 Start Scenario
                 <Play className="w-5 h-5 ml-2 inline-block" />
               </button>
