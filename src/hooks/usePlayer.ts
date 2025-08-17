@@ -35,12 +35,33 @@ export function usePlayer() {
         .eq('id', user.id)
         .single();
 
-      if (playerError && playerError.code !== 'PGRST116') {
-        console.error('Error loading player:', playerError);
-        return;
-      }
+      if (playerError) {
+        if (playerError.code === 'PGRST116') {
+          // Player doesn't exist, create one
+          const { data: newPlayer, error: createError } = await supabase
+            .from('players')
+            .insert({
+              id: user.id,
+              name: user.user_metadata?.name || user.email?.split('@')[0] || 'Player',
+              level: 1,
+              experience: 0,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .select()
+            .single();
 
-      if (playerData) {
+          if (createError) {
+            console.error('Error creating player:', createError);
+            return;
+          }
+          
+          setPlayer(newPlayer);
+        } else {
+          console.error('Error loading player:', playerError);
+          return;
+        }
+      } else if (playerData) {
         setPlayer(playerData);
       }
 
