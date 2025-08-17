@@ -67,7 +67,7 @@ export function usePlayer() {
 
       // Load badges
       const { data: badgesData, error: badgesError } = await supabase
-        .from('player_badges')
+        .from('player badges')
         .select('*')
         .eq('player_id', user.id);
 
@@ -163,7 +163,7 @@ export function usePlayer() {
     if (existingBadge) return;
 
     const { error } = await supabase
-      .from('player_badges')
+      .from('player badges')
       .insert({
         player_id: user.id,
         badge_name: badgeName,

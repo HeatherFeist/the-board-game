@@ -36,7 +36,7 @@ export type Database = {
           experience?: number;
         };
       };
-      player_badges: {
+      'player badges': {
         Row: {
           id: string;
           player_id: string;
