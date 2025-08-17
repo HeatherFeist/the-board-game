@@ -2,7 +2,11 @@ import React, { useState } from 'react';
 import { Users, Trophy, BookOpen, Settings, User, Vote, Calendar, Award, ChevronRight, Play, Crown, DollarSign, FileText, Target, Briefcase, Heart, PenTool, Megaphone, Code } from 'lucide-react';
 import { useAuth } from './hooks/useAuth';
 import { usePlayer } from './hooks/usePlayer';
+import { useScenarios } from './hooks/useScenarios';
 import { AuthModal } from './components/AuthModal';
+import { ScenarioQuestions } from './components/ScenarioQuestions';
+import { PeerVoting } from './components/PeerVoting';
+import { getQuestionsForScenario } from './data/scenarioQuestions';
 
 interface Role {
   id: string;
@@ -396,10 +400,13 @@ const getAvailableScenarios = (roleId: string): Scenario[] => {
 function App() {
   const { user, loading: authLoading, signOut } = useAuth();
   const { player, badges, completedScenarios, loading: playerLoading, updatePlayerRole, completeScenario } = usePlayer();
+  const { pendingResponses, votingResponses, myVotes, loading: scenariosLoading, submitScenarioResponse, submitVote, getResponsesNeedingVotes } = useScenarios();
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [currentView, setCurrentView] = useState<'welcome' | 'roles' | 'dashboard' | 'scenario'>('welcome');
+  const [currentView, setCurrentView] = useState<'welcome' | 'roles' | 'dashboard' | 'scenario' | 'voting'>('welcome');
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
+  const [submittingResponse, setSubmittingResponse] = useState(false);
+  const [submittingVote, setSubmittingVote] = useState(false);
 
   const handleRoleSelection = (role: Role) => {
     if (!user) {
@@ -419,13 +426,30 @@ function App() {
     setCurrentView('dashboard');
   };
 
-  const handleStartScenario = () => {
+  const handleSubmitScenarioResponse = async (responses: Record<string, any>) => {
     if (!selectedScenario || !selectedRole) return;
-    
-    // For now, simulate completing the scenario with a random score
-    // In a real implementation, this would start the interactive scenario
-    const score = Math.floor(Math.random() * 5) + 1; // Random score 1-5
-    handleScenarioComplete(selectedScenario.id, score);
+
+    setSubmittingResponse(true);
+    try {
+      await submitScenarioResponse(selectedScenario.id, selectedRole.id, responses);
+      setSelectedScenario(null);
+      setCurrentView('dashboard');
+    } catch (error) {
+      console.error('Error submitting scenario response:', error);
+    } finally {
+      setSubmittingResponse(false);
+    }
+  };
+
+  const handleSubmitVote = async (responseId: string, scores: Record<string, number>, feedback?: string) => {
+    setSubmittingVote(true);
+    try {
+      await submitVote(responseId, scores, feedback);
+    } catch (error) {
+      console.error('Error submitting vote:', error);
+    } finally {
+      setSubmittingVote(false);
+    }
   };
 
   if (authLoading || playerLoading) {
@@ -592,6 +616,17 @@ function App() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setCurrentView('voting')}
+                className="relative bg-teal-100 hover:bg-teal-200 p-2 rounded-full transition-colors"
+              >
+                <Users className="w-5 h-5 text-teal-600" />
+                {getResponsesNeedingVotes().length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {getResponsesNeedingVotes().length}
+                  </span>
+                )}
+              </button>
               <div className="text-right">
                 <p className="text-sm text-slate-600">Welcome back,</p>
                 <p className="font-medium text-slate-800">{player?.name || user?.email}</p>
@@ -610,18 +645,43 @@ function App() {
       <div className="container mx-auto px-6 py-8">
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
+            {getResponsesNeedingVotes().length > 0 && (
+              <div className="bg-gradient-to-r from-teal-50 to-blue-50 border border-teal-200 rounded-xl p-6 mb-8">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <Users className="w-6 h-6 text-teal-600 mr-3" />
+                    <div>
+                      <h3 className="font-semibold text-slate-800">Peer Reviews Needed</h3>
+                      <p className="text-sm text-slate-600">
+                        {getResponsesNeedingVotes().length} scenario response{getResponsesNeedingVotes().length !== 1 ? 's' : ''} waiting for your review
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setCurrentView('voting')}
+                    className="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    Review Now
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8">
               <h2 className="text-lg font-semibold text-slate-800 mb-4">Available Scenarios</h2>
               <div className="space-y-4">
                 {getAvailableScenarios(selectedRole?.id || '').map((scenario) => {
                   const isCompleted = completedScenarios.some(cs => cs.scenario_id === scenario.id);
+                  const isPending = pendingResponses.some(pr => pr.scenario_id === scenario.id);
                   return (
                   <div 
                     key={scenario.id}
                     className={`border border-slate-200 rounded-lg p-4 hover:bg-slate-50 cursor-pointer transition-colors group ${
-                      isCompleted ? 'bg-green-50 border-green-200' : ''
+                      isCompleted ? 'bg-green-50 border-green-200' : 
+                      isPending ? 'bg-yellow-50 border-yellow-200' : ''
                     }`}
                     onClick={() => {
+                      if (isPending) return; // Don't allow clicking on pending scenarios
                       setSelectedScenario(scenario);
                       setCurrentView('scenario');
                     }}
@@ -641,14 +701,22 @@ function App() {
                           {isCompleted && (
                             <Award className="w-4 h-4 text-green-500 ml-2" />
                           )}
+                          {isPending && (
+                            <Clock className="w-4 h-4 text-yellow-500 ml-2" />
+                          )}
                         </div>
                         <p className="text-slate-600 text-sm mb-2">{scenario.description}</p>
+                        {isPending && (
+                          <p className="text-xs text-yellow-600 font-medium">Awaiting peer review</p>
+                        )}
                         <div className="flex items-center text-xs text-slate-500">
                           <span className="mr-4">Difficulty: {scenario.difficulty}/5</span>
                           <span>{scenario.timeRequired}</span>
                         </div>
                       </div>
-                      <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-500 transition-colors ml-4" />
+                      {!isPending && (
+                        <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-500 transition-colors ml-4" />
+                      )}
                     </div>
                   </div>
                   );
@@ -748,73 +816,76 @@ function App() {
       </header>
 
       <div className="container mx-auto px-6 py-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 mb-8">
-            <div className="text-center mb-8">
-              <div className={`inline-flex p-4 rounded-full mb-4 ${
-                selectedScenario?.type === 'crisis' ? 'bg-red-100' :
-                selectedScenario?.type === 'decision' ? 'bg-blue-100' :
-                selectedScenario?.type === 'meeting' ? 'bg-green-100' :
-                'bg-purple-100'
-              }`}>
-                <Calendar className={`w-8 h-8 ${
-                  selectedScenario?.type === 'crisis' ? 'text-red-600' :
-                  selectedScenario?.type === 'decision' ? 'text-blue-600' :
-                  selectedScenario?.type === 'meeting' ? 'text-green-600' :
-                  'text-purple-600'
-                }`} />
-              </div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-4">{selectedScenario?.title}</h2>
-              <p className="text-lg text-slate-600 max-w-2xl mx-auto">{selectedScenario?.description}</p>
-            </div>
+        {selectedScenario && (
+          <ScenarioQuestions
+            scenarioId={selectedScenario.id}
+            scenarioTitle={selectedScenario.title}
+            questions={getQuestionsForScenario(selectedScenario.id)}
+            onSubmit={handleSubmitScenarioResponse}
+            loading={submittingResponse}
+          />
+        )}
+      </div>
+    </div>
+  );
 
-            <div className="grid md:grid-cols-2 gap-8 mb-8">
-              <div className="bg-slate-50 rounded-lg p-6">
-                <h3 className="font-semibold text-slate-800 mb-4">Your Role</h3>
-                <p className="text-slate-600 mb-4">
-                  As the acting {selectedRole?.title}, you are responsible for leading this situation. 
-                  Your decisions will impact the organization and provide valuable learning experiences.
-                </p>
-                <ul className="space-y-2 text-sm text-slate-600">
-                  <li className="flex items-center">
-                    <Vote className="w-4 h-4 mr-2 text-blue-500" />
-                    Make strategic decisions
-                  </li>
-                  <li className="flex items-center">
-                    <Users className="w-4 h-4 mr-2 text-blue-500" />
-                    Facilitate team discussions
-                  </li>
-                  <li className="flex items-center">
-                    <BookOpen className="w-4 h-4 mr-2 text-blue-500" />
-                    Document outcomes
-                  </li>
-                </ul>
-              </div>
-
-              <div className="bg-blue-50 rounded-lg p-6">
-                <h3 className="font-semibold text-slate-800 mb-4">Learning Objectives</h3>
-                <ul className="space-y-3 text-sm text-slate-700">
-                  <li>• Practice leadership decision-making under pressure</li>
-                  <li>• Develop stakeholder communication skills</li>
-                  <li>• Learn to balance multiple organizational priorities</li>
-                  <li>• Experience real-world governance challenges</li>
-                </ul>
-              </div>
-            </div>
-
-            <div className="text-center">
-              <button 
-                onClick={handleStartScenario}
-                className="bg-gradient-to-r from-blue-500 to-teal-500 hover:from-blue-600 hover:to-teal-600 text-white px-8 py-3 rounded-lg font-semibold transition-all duration-300 shadow-lg hover:shadow-xl"
-              >
-                Start Scenario
-                <Play className="w-5 h-5 ml-2 inline-block" />
-              </button>
-              <p className="text-sm text-slate-500 mt-4">
-                This scenario will save automatically and you can return to it at any time.
-              </p>
+  const VotingPage = () => (
+    <div className="min-h-screen bg-slate-50">
+      <header className="bg-white shadow-sm border-b">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center">
+            <button
+              onClick={() => setCurrentView('dashboard')}
+              className="text-slate-600 hover:text-slate-800 mr-4 transition-colors"
+            >
+              ← Back to Dashboard
+            </button>
+            <div>
+              <h1 className="text-xl font-semibold text-slate-800">Peer Review</h1>
+              <p className="text-slate-600 text-sm">Evaluate scenario responses from other organization members</p>
             </div>
           </div>
+        </div>
+      </header>
+
+      <div className="container mx-auto px-6 py-8">
+        <div className="max-w-4xl mx-auto">
+          {getResponsesNeedingVotes().length === 0 ? (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
+              <Users className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold text-slate-800 mb-2">No Reviews Needed</h2>
+              <p className="text-slate-600">
+                There are currently no scenario responses waiting for your review. 
+                Check back later as other members complete scenarios.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-8">
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <h2 className="text-lg font-semibold text-slate-800 mb-2">Review Instructions</h2>
+                <p className="text-slate-600 mb-4">
+                  Evaluate each response based on leadership qualities, communication effectiveness, 
+                  decision-making process, and collaborative approach. Your feedback helps colleagues 
+                  improve their governance skills.
+                </p>
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <p className="text-sm text-blue-800">
+                    <strong>Scoring Guide:</strong> 1 = Needs Improvement, 2 = Below Average, 
+                    3 = Average, 4 = Above Average, 5 = Excellent
+                  </p>
+                </div>
+              </div>
+
+              {getResponsesNeedingVotes().map((response) => (
+                <PeerVoting
+                  key={response.id}
+                  response={response}
+                  onSubmitVote={handleSubmitVote}
+                  loading={submittingVote}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -827,6 +898,7 @@ function App() {
       {currentView === 'roles' && <RoleSelectionPage />}
       {currentView === 'dashboard' && <DashboardPage />}
       {currentView === 'scenario' && <ScenarioPage />}
+      {currentView === 'voting' && <VotingPage />}
     </div>
   );
 }
