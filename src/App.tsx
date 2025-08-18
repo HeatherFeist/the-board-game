@@ -441,17 +441,6 @@ function App() {
     }
   };
 
-  const handleSubmitVote = async (responseId: string, scores: Record<string, number>, feedback?: string) => {
-    setSubmittingVote(true);
-    try {
-      await submitVote(responseId, scores, feedback);
-    } catch (error) {
-      console.error('Error submitting vote:', error);
-    } finally {
-      setSubmittingVote(false);
-    }
-  };
-
   if (authLoading || playerLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -618,14 +607,10 @@ function App() {
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => setCurrentView('voting')}
-                className="relative bg-teal-100 hover:bg-teal-200 p-2 rounded-full transition-colors"
+                className="relative bg-teal-100 hover:bg-teal-200 p-2 rounded-full transition-colors opacity-50 cursor-not-allowed"
+                disabled
               >
                 <Users className="w-5 h-5 text-teal-600" />
-                {getResponsesNeedingVotes().length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                    {getResponsesNeedingVotes().length}
-                  </span>
-                )}
               </button>
               <div className="text-right">
                 <p className="text-sm text-slate-600">Welcome back,</p>
@@ -672,16 +657,14 @@ function App() {
               <div className="space-y-4">
                 {getAvailableScenarios(selectedRole?.id || '').map((scenario) => {
                   const isCompleted = completedScenarios.some(cs => cs.scenario_id === scenario.id);
-                  const isPending = pendingResponses.some(pr => pr.scenario_id === scenario.id);
+                  const isPending = false; // Temporarily disabled
                   return (
                   <div 
                     key={scenario.id}
                     className={`border border-slate-200 rounded-lg p-4 hover:bg-slate-50 cursor-pointer transition-colors group ${
-                      isCompleted ? 'bg-green-50 border-green-200' : 
-                      isPending ? 'bg-yellow-50 border-yellow-200' : ''
+                      isCompleted ? 'bg-green-50 border-green-200' : ''
                     }`}
                     onClick={() => {
-                      if (isPending) return; // Don't allow clicking on pending scenarios
                       setSelectedScenario(scenario);
                       setCurrentView('scenario');
                     }}
@@ -701,22 +684,14 @@ function App() {
                           {isCompleted && (
                             <Award className="w-4 h-4 text-green-500 ml-2" />
                           )}
-                          {isPending && (
-                            <Clock className="w-4 h-4 text-yellow-500 ml-2" />
-                          )}
                         </div>
                         <p className="text-slate-600 text-sm mb-2">{scenario.description}</p>
-                        {isPending && (
-                          <p className="text-xs text-yellow-600 font-medium">Awaiting peer review</p>
-                        )}
                         <div className="flex items-center text-xs text-slate-500">
                           <span className="mr-4">Difficulty: {scenario.difficulty}/5</span>
                           <span>{scenario.timeRequired}</span>
                         </div>
                       </div>
-                      {!isPending && (
-                        <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-500 transition-colors ml-4" />
-                      )}
+                      <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-500 transition-colors ml-4" />
                     </div>
                   </div>
                   );
@@ -850,42 +825,14 @@ function App() {
 
       <div className="container mx-auto px-6 py-8">
         <div className="max-w-4xl mx-auto">
-          {getResponsesNeedingVotes().length === 0 ? (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
-              <Users className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-slate-800 mb-2">No Reviews Needed</h2>
-              <p className="text-slate-600">
-                There are currently no scenario responses waiting for your review. 
-                Check back later as other members complete scenarios.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-8">
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                <h2 className="text-lg font-semibold text-slate-800 mb-2">Review Instructions</h2>
-                <p className="text-slate-600 mb-4">
-                  Evaluate each response based on leadership qualities, communication effectiveness, 
-                  decision-making process, and collaborative approach. Your feedback helps colleagues 
-                  improve their governance skills.
-                </p>
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <p className="text-sm text-blue-800">
-                    <strong>Scoring Guide:</strong> 1 = Needs Improvement, 2 = Below Average, 
-                    3 = Average, 4 = Above Average, 5 = Excellent
-                  </p>
-                </div>
-              </div>
-
-              {getResponsesNeedingVotes().map((response) => (
-                <PeerVoting
-                  key={response.id}
-                  response={response}
-                  onSubmitVote={handleSubmitVote}
-                  loading={submittingVote}
-                />
-              ))}
-            </div>
-          )}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
+            <Users className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-slate-800 mb-2">Peer Voting Coming Soon</h2>
+            <p className="text-slate-600">
+              The peer voting system is being set up. This feature will allow you to review 
+              and vote on scenario responses from other organization members.
+            </p>
+          </div>
         </div>
       </div>
     </div>

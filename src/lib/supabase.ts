@@ -94,47 +94,5 @@ export type Database = {
         };
       };
     };
-    scenario_responses: {
-      Row: {
-        id: string;
-        player_id: string;
-        scenario_id: string;
-        role_id: string;
-        responses: Record<string, any>;
-        submitted_at: string;
-        status: 'pending' | 'voting' | 'completed';
-      };
-      Insert: {
-        player_id: string;
-        scenario_id: string;
-        role_id: string;
-        responses?: Record<string, any>;
-        status?: 'pending' | 'voting' | 'completed';
-      };
-      Update: {
-        responses?: Record<string, any>;
-        status?: 'pending' | 'voting' | 'completed';
-      };
-    };
-    peer_votes: {
-      Row: {
-        id: string;
-        response_id: string;
-        voter_id: string;
-        scores: Record<string, number>;
-        feedback: string | null;
-        voted_at: string;
-      };
-      Insert: {
-        response_id: string;
-        voter_id: string;
-        scores: Record<string, number>;
-        feedback?: string | null;
-      };
-      Update: {
-        scores?: Record<string, number>;
-        feedback?: string | null;
-      };
-    };
   };
 };
