@@ -2,11 +2,10 @@ import React, { useState } from 'react';
 import { Users, Trophy, BookOpen, Settings, User, Vote, Calendar, Award, ChevronRight, Play, Crown, DollarSign, FileText, Target, Briefcase, Heart, PenTool, Megaphone, Code } from 'lucide-react';
 import { useAuth } from './hooks/useAuth';
 import { usePlayer } from './hooks/usePlayer';
-import { useScenarios } from './hooks/useScenarios';
+import { useGameSession } from './hooks/useGameSession';
 import { AuthModal } from './components/AuthModal';
-import { ScenarioQuestions } from './components/ScenarioQuestions';
-import { PeerVoting } from './components/PeerVoting';
-import { getQuestionsForScenario } from './data/scenarioQuestions';
+import { GameSessionSetup } from './components/GameSessionSetup';
+import { BoardMeeting } from './components/BoardMeeting';
 
 interface Role {
   id: string;
@@ -400,13 +399,10 @@ const getAvailableScenarios = (roleId: string): Scenario[] => {
 function App() {
   const { user, loading: authLoading, signOut } = useAuth();
   const { player, badges, completedScenarios, loading: playerLoading, updatePlayerRole, completeScenario } = usePlayer();
-  const { pendingResponses, votingResponses, myVotes, loading: scenariosLoading, submitScenarioResponse, submitVote, getResponsesNeedingVotes } = useScenarios();
+  const { currentSession } = useGameSession();
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [currentView, setCurrentView] = useState<'welcome' | 'roles' | 'dashboard' | 'scenario' | 'voting'>('welcome');
+  const [currentView, setCurrentView] = useState<'welcome' | 'roles' | 'dashboard' | 'game-setup' | 'meeting'>('welcome');
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
-  const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
-  const [submittingResponse, setSubmittingResponse] = useState(false);
-  const [submittingVote, setSubmittingVote] = useState(false);
 
   const handleRoleSelection = (role: Role) => {
     if (!user) {
@@ -415,30 +411,18 @@ function App() {
     }
     setSelectedRole(role);
     updatePlayerRole(role.id);
-    setCurrentView('dashboard');
+    setCurrentView('game-setup');
   };
 
   const handleScenarioComplete = async (scenarioId: string, score: number) => {
     if (!user || !selectedRole) return;
     
     await completeScenario(scenarioId, selectedRole.id, score);
-    setSelectedScenario(null);
     setCurrentView('dashboard');
   };
 
-  const handleSubmitScenarioResponse = async (responses: Record<string, any>) => {
-    if (!selectedScenario || !selectedRole) return;
-
-    setSubmittingResponse(true);
-    try {
-      await submitScenarioResponse(selectedScenario.id, selectedRole.id, responses);
-      setSelectedScenario(null);
-      setCurrentView('dashboard');
-    } catch (error) {
-      console.error('Error submitting scenario response:', error);
-    } finally {
-      setSubmittingResponse(false);
-    }
+  const handleSessionReady = () => {
+    setCurrentView('meeting');
   };
 
   if (authLoading || playerLoading) {
@@ -511,12 +495,12 @@ function App() {
               if (!user) {
                 setShowAuthModal(true);
               } else {
-                setCurrentView('roles');
+                setCurrentView('game-setup');
               }
             }}
             className="bg-gradient-to-r from-blue-500 to-teal-500 hover:from-blue-600 hover:to-teal-600 text-white px-8 py-4 rounded-lg text-lg font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
           >
-            {user ? 'Begin Your Leadership Journey' : 'Sign In to Start Training'}
+            {user ? 'Join Board Meeting Game' : 'Sign In to Start Playing'}
             <ChevronRight className="w-5 h-5 ml-2 inline-block" />
           </button>
         </div>
@@ -606,11 +590,10 @@ function App() {
             </div>
             <div className="flex items-center space-x-4">
               <button
-                onClick={() => setCurrentView('voting')}
-                className="relative bg-teal-100 hover:bg-teal-200 p-2 rounded-full transition-colors opacity-50 cursor-not-allowed"
-                disabled
+                onClick={() => setCurrentView('game-setup')}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
               >
-                <Users className="w-5 h-5 text-teal-600" />
+                Join Game
               </button>
               <div className="text-right">
                 <p className="text-sm text-slate-600">Welcome back,</p>
@@ -630,34 +613,25 @@ function App() {
       <div className="container mx-auto px-6 py-8">
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
-            {getResponsesNeedingVotes().length > 0 && (
-              <div className="bg-gradient-to-r from-teal-50 to-blue-50 border border-teal-200 rounded-xl p-6 mb-8">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <Users className="w-6 h-6 text-teal-600 mr-3" />
-                    <div>
-                      <h3 className="font-semibold text-slate-800">Peer Reviews Needed</h3>
-                      <p className="text-sm text-slate-600">
-                        {getResponsesNeedingVotes().length} scenario response{getResponsesNeedingVotes().length !== 1 ? 's' : ''} waiting for your review
-                      </p>
-                    </div>
+            {currentSession && (
+              <div className="bg-gradient-to-r from-blue-50 to-teal-50 border border-blue-200 rounded-xl p-6 mb-8">
+                <div className="flex items-center">
+                  <Users className="w-6 h-6 text-blue-600 mr-3" />
+                  <div>
+                    <h3 className="font-semibold text-slate-800">Active Game Session</h3>
+                    <p className="text-sm text-slate-600">
+                      {currentSession.name} - Status: {currentSession.status.replace('_', ' ').toUpperCase()}
+                    </p>
                   </div>
-                  <button
-                    onClick={() => setCurrentView('voting')}
-                    className="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                  >
-                    Review Now
-                  </button>
                 </div>
               </div>
             )}
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8">
-              <h2 className="text-lg font-semibold text-slate-800 mb-4">Available Scenarios</h2>
+              <h2 className="text-lg font-semibold text-slate-800 mb-4">Training Scenarios</h2>
               <div className="space-y-4">
                 {getAvailableScenarios(selectedRole?.id || '').map((scenario) => {
                   const isCompleted = completedScenarios.some(cs => cs.scenario_id === scenario.id);
-                  const isPending = false; // Temporarily disabled
                   return (
                   <div 
                     key={scenario.id}
@@ -665,8 +639,8 @@ function App() {
                       isCompleted ? 'bg-green-50 border-green-200' : ''
                     }`}
                     onClick={() => {
-                      setSelectedScenario(scenario);
-                      setCurrentView('scenario');
+                      // For now, just complete the scenario with a random score
+                      handleScenarioComplete(scenario.id, Math.floor(Math.random() * 5) + 1);
                     }}
                   >
                     <div className="flex items-start justify-between">
@@ -771,69 +745,50 @@ function App() {
     </div>
   );
 
-  const ScenarioPage = () => (
+  const GameSetupPage = () => (
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center">
             <button
-              onClick={() => setCurrentView('dashboard')}
+              onClick={() => setCurrentView('welcome')}
               className="text-slate-600 hover:text-slate-800 mr-4 transition-colors"
             >
-              ← Back to Dashboard
+              ← Back to Welcome
             </button>
             <div>
-              <h1 className="text-xl font-semibold text-slate-800">{selectedScenario?.title}</h1>
-              <p className="text-slate-600 text-sm">{selectedScenario?.timeRequired} • {selectedScenario?.type}</p>
+              <h1 className="text-xl font-semibold text-slate-800">Board Meeting Game Setup</h1>
+              <p className="text-slate-600 text-sm">Create or join a game session</p>
             </div>
           </div>
         </div>
       </header>
-
       <div className="container mx-auto px-6 py-8">
-        {selectedScenario && (
-          <ScenarioQuestions
-            scenarioId={selectedScenario.id}
-            scenarioTitle={selectedScenario.title}
-            questions={getQuestionsForScenario(selectedScenario.id)}
-            onSubmit={handleSubmitScenarioResponse}
-            loading={submittingResponse}
-          />
-        )}
+        <GameSessionSetup onSessionReady={handleSessionReady} />
       </div>
     </div>
   );
 
-  const VotingPage = () => (
+  const MeetingPage = () => (
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center">
             <button
-              onClick={() => setCurrentView('dashboard')}
+              onClick={() => setCurrentView('game-setup')}
               className="text-slate-600 hover:text-slate-800 mr-4 transition-colors"
             >
-              ← Back to Dashboard
+              ← Back to Setup
             </button>
             <div>
-              <h1 className="text-xl font-semibold text-slate-800">Peer Review</h1>
-              <p className="text-slate-600 text-sm">Evaluate scenario responses from other organization members</p>
+              <h1 className="text-xl font-semibold text-slate-800">Board Meeting in Session</h1>
+              <p className="text-slate-600 text-sm">Participate in the live board meeting simulation</p>
             </div>
           </div>
         </div>
       </header>
-
       <div className="container mx-auto px-6 py-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
-            <Users className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-slate-800 mb-2">Peer Voting Coming Soon</h2>
-            <p className="text-slate-600">
-              The peer voting system is being set up. This feature will allow you to review 
-              and vote on scenario responses from other organization members.
-            </p>
-          </div>
-        </div>
+        {currentSession && <BoardMeeting gameSessionId={currentSession.id} />}
       </div>
     </div>
   );
@@ -844,8 +799,8 @@ function App() {
       {currentView === 'welcome' && <WelcomePage />}
       {currentView === 'roles' && <RoleSelectionPage />}
       {currentView === 'dashboard' && <DashboardPage />}
-      {currentView === 'scenario' && <ScenarioPage />}
-      {currentView === 'voting' && <VotingPage />}
+      {currentView === 'game-setup' && <GameSetupPage />}
+      {currentView === 'meeting' && <MeetingPage />}
     </div>
   );
 }
