@@ -2,10 +2,14 @@ import React, { useState } from 'react';
 import { Users, Trophy, BookOpen, Settings, User, Vote, Calendar, Award, ChevronRight, Play, Crown, DollarSign, FileText, Target, Briefcase, Heart, PenTool, Megaphone, Code } from 'lucide-react';
 import { useAuth } from './hooks/useAuth';
 import { usePlayer } from './hooks/usePlayer';
-import { useGameSession } from './hooks/useGameSession';
+import { useScenarios } from './hooks/useScenarios';
+import { useMeetings } from './hooks/useMeetings';
+import { useDonations } from './hooks/useDonations';
 import { AuthModal } from './components/AuthModal';
-import { GameSessionSetup } from './components/GameSessionSetup';
-import { BoardMeeting } from './components/BoardMeeting';
+import { AdminSchemaBanner } from './components/AdminSchemaBanner';
+import { PeerVoting } from './components/PeerVoting';
+import { MeetingFlow } from './components/MeetingFlow';
+import { DonationSystem } from './components/DonationSystem';
 
 interface Role {
   id: string;
@@ -16,28 +20,9 @@ interface Role {
   icon: React.ReactNode;
 }
 
-interface Scenario {
-  id: string;
-  title: string;
-  description: string;
-  type: 'decision' | 'meeting' | 'crisis' | 'planning';
-  difficulty: number;
-  timeRequired: string;
-}
-
-interface Player {
-  id: string;
-  name: string;
-  currentRole: string | null;
-  level: number;
-  experience: number;
-  badges: string[];
-  completedScenarios: string[];
-}
-
 const roles: Role[] = [
   {
-    id: 'executive-director',
+    id: 'Executive Director',
     title: 'Executive Director',
     description: 'Lead the organization\'s strategic vision and overall operations',
     responsibilities: [
@@ -50,7 +35,7 @@ const roles: Role[] = [
     icon: <Crown className="w-6 h-6" />
   },
   {
-    id: 'treasurer',
+    id: 'Treasurer',
     title: 'Treasurer',
     description: 'Manage financial resources, budgets, and fiscal planning',
     responsibilities: [
@@ -63,7 +48,7 @@ const roles: Role[] = [
     icon: <DollarSign className="w-6 h-6" />
   },
   {
-    id: 'secretary',
+    id: 'Secretary',
     title: 'Secretary',
     description: 'Document meetings, manage communications, and maintain records',
     responsibilities: [
@@ -76,7 +61,7 @@ const roles: Role[] = [
     icon: <FileText className="w-6 h-6" />
   },
   {
-    id: 'program-director',
+    id: 'Program Director',
     title: 'Program Director',
     description: 'Oversee program development, implementation, and evaluation',
     responsibilities: [
@@ -89,7 +74,7 @@ const roles: Role[] = [
     icon: <Target className="w-6 h-6" />
   },
   {
-    id: 'project-director',
+    id: 'Project Director',
     title: 'Project Director',
     description: 'Manage specific projects from conception to completion',
     responsibilities: [
@@ -102,7 +87,7 @@ const roles: Role[] = [
     icon: <Briefcase className="w-6 h-6" />
   },
   {
-    id: 'fundraising-director',
+    id: 'Fundraising Director',
     title: 'Fundraising Director',
     description: 'Develop and execute fundraising strategies and donor relations',
     responsibilities: [
@@ -115,7 +100,7 @@ const roles: Role[] = [
     icon: <Heart className="w-6 h-6" />
   },
   {
-    id: 'grant-writer',
+    id: 'Grant Writer',
     title: 'Grant Writer',
     description: 'Research, write, and manage grant applications and reporting',
     responsibilities: [
@@ -128,301 +113,66 @@ const roles: Role[] = [
     icon: <PenTool className="w-6 h-6" />
   },
   {
-    id: 'marketing-communications',
-    title: 'Marketing/Communications',
-    description: 'Manage brand messaging, marketing campaigns, and public relations',
+    id: 'Tech & App Dev / Marketing-Communications Director',
+    title: 'Tech & App Dev / Marketing-Communications Director',
+    description: 'Manage technology solutions and marketing communications',
     responsibilities: [
-      'Brand strategy and messaging development',
-      'Digital marketing and social media management',
-      'Public relations and media outreach',
-      'Content creation and campaign execution'
-    ],
-    difficulty: 'Intermediate',
-    icon: <Megaphone className="w-6 h-6" />
-  },
-  {
-    id: 'app-developer',
-    title: 'App Developer',
-    description: 'Design, develop, and maintain organizational technology solutions',
-    responsibilities: [
-      'Application development and maintenance',
-      'Technical architecture and system design',
-      'User experience optimization and testing',
-      'Technology integration and automation'
+      'Technology development and maintenance',
+      'Digital marketing and communications strategy',
+      'Brand management and public relations',
+      'Technical integration and automation'
     ],
     difficulty: 'Advanced',
     icon: <Code className="w-6 h-6" />
   }
 ];
 
-const roleScenarios: Record<string, Scenario[]> = {
-  'executive-director': [
-    {
-      id: 'board-meeting-facilitation',
-      title: 'Monthly Board Meeting Crisis',
-      description: 'Two board members are in heated disagreement about budget allocation. You must facilitate resolution while keeping the meeting productive and maintaining board unity.',
-      type: 'meeting',
-      difficulty: 4,
-      timeRequired: '45 minutes'
-    },
-    {
-      id: 'strategic-pivot',
-      title: 'Strategic Direction Pivot',
-      description: 'Market conditions have changed dramatically. Lead the board through evaluating whether to pivot the organization\'s core mission or double down on current programs.',
-      type: 'planning',
-      difficulty: 5,
-      timeRequired: '90 minutes'
-    },
-    {
-      id: 'stakeholder-crisis',
-      title: 'Major Donor Withdrawal',
-      description: 'Your largest donor is threatening to withdraw funding due to concerns about organizational direction. Navigate this delicate situation while preserving relationships.',
-      type: 'crisis',
-      difficulty: 5,
-      timeRequired: '60 minutes'
-    }
-  ],
-  'treasurer': [
-    {
-      id: 'budget-shortfall',
-      title: 'Quarterly Budget Shortfall',
-      description: 'Revenue is 30% below projections. Present options to the board: cut programs, seek emergency funding, or restructure operations.',
-      type: 'crisis',
-      difficulty: 4,
-      timeRequired: '60 minutes'
-    },
-    {
-      id: 'annual-budget',
-      title: 'Annual Budget Planning',
-      description: 'Create next year\'s budget with input from all departments. Balance ambitious program goals with financial reality.',
-      type: 'planning',
-      difficulty: 3,
-      timeRequired: '75 minutes'
-    },
-    {
-      id: 'audit-preparation',
-      title: 'External Audit Preparation',
-      description: 'Prepare financial records and coordinate with auditors. Address discrepancies found in expense reporting from two departments.',
-      type: 'decision',
-      difficulty: 4,
-      timeRequired: '90 minutes'
-    }
-  ],
-  'secretary': [
-    {
-      id: 'governance-compliance',
-      title: 'Governance Compliance Review',
-      description: 'The state has updated nonprofit compliance requirements. Review current practices and implement necessary changes to maintain legal standing.',
-      type: 'decision',
-      difficulty: 3,
-      timeRequired: '45 minutes'
-    },
-    {
-      id: 'meeting-minutes-dispute',
-      title: 'Meeting Minutes Dispute',
-      description: 'A board member disputes the accuracy of last month\'s minutes regarding a key vote. Navigate this diplomatically while maintaining accurate records.',
-      type: 'crisis',
-      difficulty: 3,
-      timeRequired: '30 minutes'
-    },
-    {
-      id: 'policy-development',
-      title: 'New Policy Development',
-      description: 'Draft a new conflict of interest policy after a potential issue was raised. Ensure it\'s comprehensive yet practical for board implementation.',
-      type: 'planning',
-      difficulty: 4,
-      timeRequired: '60 minutes'
-    }
-  ],
-  'program-director': [
-    {
-      id: 'program-evaluation',
-      title: 'Program Impact Assessment',
-      description: 'Evaluate the effectiveness of three core programs. One is underperforming - recommend whether to modify, replace, or discontinue it.',
-      type: 'decision',
-      difficulty: 4,
-      timeRequired: '75 minutes'
-    },
-    {
-      id: 'curriculum-crisis',
-      title: 'Curriculum Content Challenge',
-      description: 'Community members have raised concerns about program content being outdated. Rapidly assess and propose curriculum updates while managing stakeholder expectations.',
-      type: 'crisis',
-      difficulty: 4,
-      timeRequired: '60 minutes'
-    },
-    {
-      id: 'new-program-launch',
-      title: 'New Program Development',
-      description: 'Design and launch a new community program based on identified needs. Coordinate with other departments and establish success metrics.',
-      type: 'planning',
-      difficulty: 5,
-      timeRequired: '90 minutes'
-    }
-  ],
-  'project-director': [
-    {
-      id: 'project-timeline-crisis',
-      title: 'Critical Project Delay',
-      description: 'A major project is 3 weeks behind schedule due to vendor issues. Develop recovery plan while managing client expectations and team morale.',
-      type: 'crisis',
-      difficulty: 4,
-      timeRequired: '45 minutes'
-    },
-    {
-      id: 'resource-allocation',
-      title: 'Multi-Project Resource Conflict',
-      description: 'Three projects need the same specialist team member simultaneously. Negotiate priorities and find creative solutions to avoid delays.',
-      type: 'decision',
-      difficulty: 3,
-      timeRequired: '30 minutes'
-    },
-    {
-      id: 'scope-expansion',
-      title: 'Project Scope Expansion Request',
-      description: 'A client wants to significantly expand project scope mid-way through. Evaluate feasibility, costs, and impact on other commitments.',
-      type: 'decision',
-      difficulty: 4,
-      timeRequired: '60 minutes'
-    }
-  ],
-  'fundraising-director': [
-    {
-      id: 'donor-stewardship-crisis',
-      title: 'Major Donor Relationship Crisis',
-      description: 'A major donor feels neglected and is considering redirecting their annual gift. Develop a stewardship recovery plan and rebuild the relationship.',
-      type: 'crisis',
-      difficulty: 4,
-      timeRequired: '60 minutes'
-    },
-    {
-      id: 'campaign-strategy',
-      title: 'Annual Fundraising Campaign',
-      description: 'Plan and launch the annual fundraising campaign. Set targets, develop messaging, and coordinate with marketing for maximum impact.',
-      type: 'planning',
-      difficulty: 4,
-      timeRequired: '75 minutes'
-    },
-    {
-      id: 'corporate-partnership',
-      title: 'Corporate Partnership Negotiation',
-      description: 'A major corporation wants to partner with the organization. Negotiate terms that align with mission while maximizing financial benefit.',
-      type: 'decision',
-      difficulty: 5,
-      timeRequired: '90 minutes'
-    }
-  ],
-  'grant-writer': [
-    {
-      id: 'urgent-grant-deadline',
-      title: 'Last-Minute Grant Opportunity',
-      description: 'A perfect-fit $200K grant has a submission deadline in 48 hours. Coordinate rapid response while ensuring quality application.',
-      type: 'crisis',
-      difficulty: 5,
-      timeRequired: '90 minutes'
-    },
-    {
-      id: 'grant-rejection-analysis',
-      title: 'Grant Rejection Response',
-      description: 'Three major grant applications were rejected. Analyze feedback, identify improvement areas, and develop strategy for resubmission.',
-      type: 'decision',
-      difficulty: 3,
-      timeRequired: '45 minutes'
-    },
-    {
-      id: 'funder-relationship',
-      title: 'Funder Relationship Development',
-      description: 'Build relationships with five new potential funders. Research their priorities and develop tailored engagement strategies.',
-      type: 'planning',
-      difficulty: 4,
-      timeRequired: '60 minutes'
-    }
-  ],
-  'marketing-communications': [
-    {
-      id: 'brand-crisis',
-      title: 'Social Media Crisis Management',
-      description: 'Negative comments about the organization are trending on social media. Develop response strategy while protecting brand reputation.',
-      type: 'crisis',
-      difficulty: 4,
-      timeRequired: '30 minutes'
-    },
-    {
-      id: 'campaign-launch',
-      title: 'Major Campaign Launch',
-      description: 'Launch a comprehensive marketing campaign for a new program. Coordinate messaging across all channels and measure initial impact.',
-      type: 'planning',
-      difficulty: 4,
-      timeRequired: '75 minutes'
-    },
-    {
-      id: 'media-opportunity',
-      title: 'Media Interview Opportunity',
-      description: 'A major news outlet wants to interview the Executive Director about organizational impact. Prepare talking points and manage the opportunity.',
-      type: 'decision',
-      difficulty: 3,
-      timeRequired: '45 minutes'
-    }
-  ],
-  'app-developer': [
-    {
-      id: 'system-outage',
-      title: 'Critical System Outage',
-      description: 'The main organizational database is down during a crucial fundraising event. Implement emergency solutions while planning permanent fixes.',
-      type: 'crisis',
-      difficulty: 5,
-      timeRequired: '60 minutes'
-    },
-    {
-      id: 'feature-prioritization',
-      title: 'Feature Development Prioritization',
-      description: 'Multiple departments want new features developed simultaneously. Evaluate requests, assess technical feasibility, and create development roadmap.',
-      type: 'decision',
-      difficulty: 4,
-      timeRequired: '45 minutes'
-    },
-    {
-      id: 'integration-project',
-      title: 'Third-Party Integration Project',
-      description: 'Integrate the organization\'s systems with a new partner platform. Plan technical architecture while ensuring data security and user experience.',
-      type: 'planning',
-      difficulty: 5,
-      timeRequired: '90 minutes'
-    }
-  ]
-};
-
-const getAvailableScenarios = (roleId: string): Scenario[] => {
-  return roleScenarios[roleId] || [];
-};
-
 function App() {
   const { user, loading: authLoading, signOut } = useAuth();
-  const { player, badges, completedScenarios, loading: playerLoading, updatePlayerRole, completeScenario } = usePlayer();
-  const { currentSession } = useGameSession();
+  const { player, badges, loading: playerLoading, error: playerError, updatePlayerRole, updatePlayerScore } = usePlayer();
+  const { getResponsesForVoting, submitVote, error: scenariosError } = useScenarios();
+  const { currentMeeting, createMeeting } = useMeetings();
+  const { getUserDonation } = useDonations();
+  
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [currentView, setCurrentView] = useState<'welcome' | 'roles' | 'dashboard' | 'game-setup' | 'meeting'>('welcome');
+  const [currentView, setCurrentView] = useState<'welcome' | 'roles' | 'dashboard' | 'meeting' | 'voting' | 'donations'>('welcome');
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+  const [schemaError, setSchemaError] = useState<string | null>(null);
 
-  const handleRoleSelection = (role: Role) => {
+  // Handle schema errors
+  React.useEffect(() => {
+    if (playerError?.includes('PGRST205') || scenariosError?.includes('PGRST205')) {
+      setSchemaError(playerError || scenariosError || null);
+    }
+  }, [playerError, scenariosError]);
+
+  const handleRoleSelection = async (role: Role) => {
     if (!user) {
       setShowAuthModal(true);
       return;
     }
     setSelectedRole(role);
-    updatePlayerRole(role.id);
-    setCurrentView('game-setup');
-  };
-
-  const handleScenarioComplete = async (scenarioId: string, score: number) => {
-    if (!user || !selectedRole) return;
-    
-    await completeScenario(scenarioId, selectedRole.id, score);
+    await updatePlayerRole(role.id);
     setCurrentView('dashboard');
   };
 
-  const handleSessionReady = () => {
+  const handleStartMeeting = async () => {
+    if (!currentMeeting) {
+      await createMeeting('Board Meeting Session', [
+        'Call to Order',
+        'Minutes Review',
+        'Officer Reports',
+        'Old Business',
+        'New Business',
+        'Adjournment'
+      ]);
+    }
     setCurrentView('meeting');
+  };
+
+  const handleVoteSubmit = async (responseId: string, score: number) => {
+    await submitVote(responseId, score);
+    await updatePlayerScore(5); // Award points for voting
   };
 
   if (authLoading || playerLoading) {
@@ -438,6 +188,8 @@ function App() {
 
   const WelcomePage = () => (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+      <AdminSchemaBanner error={schemaError || undefined} onDismiss={() => setSchemaError(null)} />
+      
       <div className="container mx-auto px-6 py-12">
         <div className="text-center mb-16">
           <div className="flex justify-center mb-6">
@@ -453,7 +205,7 @@ function App() {
           </p>
           <p className="text-lg text-slate-300 max-w-4xl mx-auto leading-relaxed">
             Step into any board role, experience realistic decision-making scenarios, and build real-world 
-            leadership skills through immersive gameplay that mirrors our governance model.
+            leadership skills through immersive gameplay with peer voting and real monetary stakes.
           </p>
         </div>
 
@@ -464,27 +216,27 @@ function App() {
             </div>
             <h3 className="text-xl font-semibold text-white mb-3">Realistic Simulations</h3>
             <p className="text-slate-300">
-              Experience authentic scenarios drawn from real organizational challenges and opportunities.
+              Experience authentic scenarios with peer validation and real financial consequences.
             </p>
           </div>
           
           <div className="bg-white/10 backdrop-blur-sm rounded-xl p-8 border border-white/20">
             <div className="bg-teal-500/20 p-3 rounded-lg w-fit mb-4">
-              <Award className="w-6 h-6 text-teal-300" />
+              <Vote className="w-6 h-6 text-teal-300" />
             </div>
-            <h3 className="text-xl font-semibold text-white mb-3">Skill Development</h3>
+            <h3 className="text-xl font-semibold text-white mb-3">Peer Validation</h3>
             <p className="text-slate-300">
-              Build leadership capabilities through progressive challenges and earn recognition for achievements.
+              Your responses are scored by peers, ensuring authentic learning and accountability.
             </p>
           </div>
           
           <div className="bg-white/10 backdrop-blur-sm rounded-xl p-8 border border-white/20">
             <div className="bg-amber-500/20 p-3 rounded-lg w-fit mb-4">
-              <Users className="w-6 h-6 text-amber-300" />
+              <DollarSign className="w-6 h-6 text-amber-300" />
             </div>
-            <h3 className="text-xl font-semibold text-white mb-3">Real-World Impact</h3>
+            <h3 className="text-xl font-semibold text-white mb-3">Real Stakes</h3>
             <p className="text-slate-300">
-              Your in-game performance contributes to real leadership readiness and organizational effectiveness.
+              Contribute real money that funds budgets and prizes, making every decision count.
             </p>
           </div>
         </div>
@@ -495,12 +247,12 @@ function App() {
               if (!user) {
                 setShowAuthModal(true);
               } else {
-                setCurrentView('game-setup');
+                setCurrentView('roles');
               }
             }}
             className="bg-gradient-to-r from-blue-500 to-teal-500 hover:from-blue-600 hover:to-teal-600 text-white px-8 py-4 rounded-lg text-lg font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
           >
-            {user ? 'Join Board Meeting Game' : 'Sign In to Start Playing'}
+            {user ? 'Choose Your Role' : 'Sign In to Start Playing'}
             <ChevronRight className="w-5 h-5 ml-2 inline-block" />
           </button>
         </div>
@@ -510,6 +262,8 @@ function App() {
 
   const RoleSelectionPage = () => (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <AdminSchemaBanner error={schemaError || undefined} onDismiss={() => setSchemaError(null)} />
+      
       <div className="container mx-auto px-6 py-12">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-slate-800 mb-4">Choose Your Role</h1>
@@ -574,224 +328,211 @@ function App() {
     </div>
   );
 
-  const DashboardPage = () => (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="bg-blue-500 text-white p-2 rounded-lg mr-3">
-                {selectedRole?.icon}
+  const DashboardPage = () => {
+    const userDonation = getUserDonation();
+    const responsesToVote = getResponsesForVoting();
+    
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <AdminSchemaBanner error={schemaError || undefined} onDismiss={() => setSchemaError(null)} />
+        
+        <header className="bg-white shadow-sm border-b">
+          <div className="container mx-auto px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="bg-blue-500 text-white p-2 rounded-lg mr-3">
+                  {selectedRole?.icon}
+                </div>
+                <div>
+                  <h1 className="text-xl font-semibold text-slate-800">{player?.role} Dashboard</h1>
+                  <p className="text-slate-600 text-sm">Score: {player?.score || 0} points</p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-xl font-semibold text-slate-800">{selectedRole?.title} Dashboard</h1>
-                <p className="text-slate-600 text-sm">Level {player?.level || 1} • {player?.experience || 0} XP</p>
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => setCurrentView('donations')}
+                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                  {userDonation ? 'View Donations' : 'Make Donation'}
+                </button>
+                <button
+                  onClick={handleStartMeeting}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                  Join Meeting
+                </button>
+                <div className="text-right">
+                  <p className="text-sm text-slate-600">Welcome back,</p>
+                  <p className="font-medium text-slate-800">{player?.name || user?.email}</p>
+                </div>
+                <button
+                  onClick={() => signOut()}
+                  className="bg-slate-100 hover:bg-slate-200 p-2 rounded-full transition-colors"
+                >
+                  <User className="w-5 h-5 text-slate-600" />
+                </button>
               </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => setCurrentView('game-setup')}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-              >
-                Join Game
-              </button>
-              <div className="text-right">
-                <p className="text-sm text-slate-600">Welcome back,</p>
-                <p className="font-medium text-slate-800">{player?.name || user?.email}</p>
-              </div>
-              <button
-                onClick={() => signOut()}
-                className="bg-slate-100 hover:bg-slate-200 p-2 rounded-full transition-colors"
-              >
-                <User className="w-5 h-5 text-slate-600" />
-              </button>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <div className="container mx-auto px-6 py-8">
-        <div className="grid lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2">
-            {currentSession && (
-              <div className="bg-gradient-to-r from-blue-50 to-teal-50 border border-blue-200 rounded-xl p-6 mb-8">
-                <div className="flex items-center">
-                  <Users className="w-6 h-6 text-blue-600 mr-3" />
-                  <div>
-                    <h3 className="font-semibold text-slate-800">Active Game Session</h3>
-                    <p className="text-sm text-slate-600">
-                      {currentSession.name} - Status: {currentSession.status.replace('_', ' ').toUpperCase()}
+        <div className="container mx-auto px-6 py-8">
+          <div className="grid lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2">
+              {/* Peer Voting Section */}
+              {responsesToVote.length > 0 && (
+                <div className="mb-8">
+                  <h2 className="text-lg font-semibold text-slate-800 mb-4">Peer Voting</h2>
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+                    <p className="text-amber-800 text-sm">
+                      <strong>Vote on peer responses to earn points!</strong> Your votes help validate 
+                      the quality of responses and contribute to fair scoring.
                     </p>
                   </div>
-                </div>
-              </div>
-            )}
-
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8">
-              <h2 className="text-lg font-semibold text-slate-800 mb-4">Training Scenarios</h2>
-              <div className="space-y-4">
-                {getAvailableScenarios(selectedRole?.id || '').map((scenario) => {
-                  const isCompleted = completedScenarios.some(cs => cs.scenario_id === scenario.id);
-                  return (
-                  <div 
-                    key={scenario.id}
-                    className={`border border-slate-200 rounded-lg p-4 hover:bg-slate-50 cursor-pointer transition-colors group ${
-                      isCompleted ? 'bg-green-50 border-green-200' : ''
-                    }`}
-                    onClick={() => {
-                      // For now, just complete the scenario with a random score
-                      handleScenarioComplete(scenario.id, Math.floor(Math.random() * 5) + 1);
-                    }}
+                  <button
+                    onClick={() => setCurrentView('voting')}
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-300"
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center mb-2">
-                          <h3 className="font-semibold text-slate-800 mr-3">{scenario.title}</h3>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            scenario.type === 'crisis' ? 'bg-red-100 text-red-700' :
-                            scenario.type === 'decision' ? 'bg-blue-100 text-blue-700' :
-                            scenario.type === 'meeting' ? 'bg-green-100 text-green-700' :
-                            'bg-purple-100 text-purple-700'
-                          }`}>
-                            {scenario.type}
-                          </span>
-                          {isCompleted && (
-                            <Award className="w-4 h-4 text-green-500 ml-2" />
-                          )}
-                        </div>
-                        <p className="text-slate-600 text-sm mb-2">{scenario.description}</p>
-                        <div className="flex items-center text-xs text-slate-500">
-                          <span className="mr-4">Difficulty: {scenario.difficulty}/5</span>
-                          <span>{scenario.timeRequired}</span>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-500 transition-colors ml-4" />
+                    Vote on {responsesToVote.length} Response{responsesToVote.length !== 1 ? 's' : ''}
+                  </button>
+                </div>
+              )}
+
+              {/* Meeting Status */}
+              {currentMeeting && (
+                <div className="bg-gradient-to-r from-blue-50 to-teal-50 border border-blue-200 rounded-xl p-6 mb-8">
+                  <div className="flex items-center">
+                    <Users className="w-6 h-6 text-blue-600 mr-3" />
+                    <div>
+                      <h3 className="font-semibold text-slate-800">{currentMeeting.title}</h3>
+                      <p className="text-sm text-slate-600">
+                        Status: {currentMeeting.status.toUpperCase()}
+                      </p>
                     </div>
                   </div>
-                  );
-                })}
+                </div>
+              )}
+
+              {/* Quick Actions */}
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <h2 className="text-lg font-semibold text-slate-800 mb-4">Quick Actions</h2>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <button
+                    onClick={() => setCurrentView('donations')}
+                    className="p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-left"
+                  >
+                    <DollarSign className="w-6 h-6 text-green-600 mb-2" />
+                    <h3 className="font-medium text-slate-800">Donation System</h3>
+                    <p className="text-sm text-slate-600">Contribute to game funding</p>
+                  </button>
+                  
+                  <button
+                    onClick={handleStartMeeting}
+                    className="p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-left"
+                  >
+                    <Users className="w-6 h-6 text-blue-600 mb-2" />
+                    <h3 className="font-medium text-slate-800">Board Meeting</h3>
+                    <p className="text-sm text-slate-600">Participate in meeting simulation</p>
+                  </button>
+                  
+                  {responsesToVote.length > 0 && (
+                    <button
+                      onClick={() => setCurrentView('voting')}
+                      className="p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-left"
+                    >
+                      <Vote className="w-6 h-6 text-purple-600 mb-2" />
+                      <h3 className="font-medium text-slate-800">Peer Voting</h3>
+                      <p className="text-sm text-slate-600">{responsesToVote.length} responses to review</p>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-              <h2 className="text-lg font-semibold text-slate-800 mb-4">Recent Activity</h2>
-              <div className="space-y-4">
-                <div className="flex items-center">
-                  <div className="bg-green-100 p-2 rounded-full mr-4">
-                    <Award className="w-4 h-4 text-green-600" />
+            <div>
+              {/* Player Stats */}
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+                <h3 className="font-semibold text-slate-800 mb-4">Your Progress</h3>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm text-slate-600 mb-2">Current Score</p>
+                    <p className="text-2xl font-bold text-slate-800">{player?.score || 0}</p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-slate-800">Completed Stakeholder Meeting</p>
-                    <p className="text-xs text-slate-600">Earned 50 XP • 2 hours ago</p>
-                  </div>
-                </div>
-                <div className="flex items-center">
-                  <div className="bg-blue-100 p-2 rounded-full mr-4">
-                    <Trophy className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-800">Earned "Team Player" Badge</p>
-                    <p className="text-xs text-slate-600">Yesterday</p>
+                    <p className="text-sm text-slate-600 mb-2">Role</p>
+                    <p className="font-medium text-slate-800">{player?.role || 'Not selected'}</p>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <div>
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
-              <h3 className="font-semibold text-slate-800 mb-4">Progress Overview</h3>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-slate-600">Level Progress</span>
-                    <span className="font-medium text-slate-800">{player?.experience || 0}/500 XP</span>
-                  </div>
-                  <div className="w-full bg-slate-200 rounded-full h-2">
-                    <div 
-                      className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${((player?.experience || 0) / 500) * 100}%` }}
-                    />
-                  </div>
+              {/* Badges */}
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <h3 className="font-semibold text-slate-800 mb-4">Badges Earned</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {badges.map((badge) => (
+                    <div key={badge.id} className="bg-gradient-to-br from-blue-50 to-teal-50 p-3 rounded-lg border border-blue-200">
+                      <Award className="w-5 h-5 text-blue-600 mb-2" />
+                      <p className="text-xs font-medium text-slate-800">{badge.badge}</p>
+                    </div>
+                  ))}
+                  {badges.length === 0 && (
+                    <div className="col-span-2 text-center py-4">
+                      <p className="text-sm text-slate-500">Participate in meetings to earn badges!</p>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <p className="text-sm text-slate-600 mb-2">Scenarios Completed</p>
-                  <p className="text-2xl font-bold text-slate-800">
-                    {completedScenarios.length}/{selectedRole ? getAvailableScenarios(selectedRole.id).length : 0}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-              <h3 className="font-semibold text-slate-800 mb-4">Badges Earned</h3>
-              <div className="grid grid-cols-2 gap-3">
-                {badges.map((badge) => (
-                  <div key={badge.id} className="bg-gradient-to-br from-blue-50 to-teal-50 p-3 rounded-lg border border-blue-200">
-                    <Award className="w-5 h-5 text-blue-600 mb-2" />
-                    <p className="text-xs font-medium text-slate-800">{badge.badge_name}</p>
-                  </div>
-                ))}
-                {badges.length === 0 && (
-                  <div className="col-span-2 text-center py-4">
-                    <p className="text-sm text-slate-500">Complete scenarios to earn badges!</p>
-                  </div>
-                )}
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
-  const GameSetupPage = () => (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center">
-            <button
-              onClick={() => setCurrentView('welcome')}
-              className="text-slate-600 hover:text-slate-800 mr-4 transition-colors"
-            >
-              ← Back to Welcome
-            </button>
-            <div>
-              <h1 className="text-xl font-semibold text-slate-800">Board Meeting Game Setup</h1>
-              <p className="text-slate-600 text-sm">Create or join a game session</p>
+  const VotingPage = () => {
+    const responsesToVote = getResponsesForVoting();
+    
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <header className="bg-white shadow-sm border-b">
+          <div className="container mx-auto px-6 py-4">
+            <div className="flex items-center">
+              <button
+                onClick={() => setCurrentView('dashboard')}
+                className="text-slate-600 hover:text-slate-800 mr-4 transition-colors"
+              >
+                ← Back to Dashboard
+              </button>
+              <div>
+                <h1 className="text-xl font-semibold text-slate-800">Peer Voting</h1>
+                <p className="text-slate-600 text-sm">Review and score peer responses</p>
+              </div>
             </div>
           </div>
-        </div>
-      </header>
-      <div className="container mx-auto px-6 py-8">
-        <GameSessionSetup onSessionReady={handleSessionReady} />
-      </div>
-    </div>
-  );
-
-  const MeetingPage = () => (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center">
-            <button
-              onClick={() => setCurrentView('game-setup')}
-              className="text-slate-600 hover:text-slate-800 mr-4 transition-colors"
-            >
-              ← Back to Setup
-            </button>
-            <div>
-              <h1 className="text-xl font-semibold text-slate-800">Board Meeting in Session</h1>
-              <p className="text-slate-600 text-sm">Participate in the live board meeting simulation</p>
+        </header>
+        
+        <div className="container mx-auto px-6 py-8">
+          {responsesToVote.length > 0 ? (
+            <div className="space-y-8">
+              {responsesToVote.map((response) => (
+                <PeerVoting
+                  key={response.id}
+                  response={response}
+                  onSubmitVote={handleVoteSubmit}
+                />
+              ))}
             </div>
-          </div>
+          ) : (
+            <div className="text-center py-12">
+              <Vote className="w-16 h-16 text-slate-400 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold text-slate-800 mb-2">No Responses to Vote On</h2>
+              <p className="text-slate-600">Check back later for new peer responses to review.</p>
+            </div>
+          )}
         </div>
-      </header>
-      <div className="container mx-auto px-6 py-8">
-        {currentSession && <BoardMeeting gameSessionId={currentSession.id} />}
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="font-sans">
@@ -799,8 +540,49 @@ function App() {
       {currentView === 'welcome' && <WelcomePage />}
       {currentView === 'roles' && <RoleSelectionPage />}
       {currentView === 'dashboard' && <DashboardPage />}
-      {currentView === 'game-setup' && <GameSetupPage />}
-      {currentView === 'meeting' && <MeetingPage />}
+      {currentView === 'meeting' && currentMeeting && (
+        <div className="min-h-screen bg-slate-50">
+          <header className="bg-white shadow-sm border-b">
+            <div className="container mx-auto px-6 py-4">
+              <div className="flex items-center">
+                <button
+                  onClick={() => setCurrentView('dashboard')}
+                  className="text-slate-600 hover:text-slate-800 mr-4 transition-colors"
+                >
+                  ← Back to Dashboard
+                </button>
+                <div>
+                  <h1 className="text-xl font-semibold text-slate-800">Board Meeting</h1>
+                  <p className="text-slate-600 text-sm">Participate in the meeting simulation</p>
+                </div>
+              </div>
+            </div>
+          </header>
+          <MeetingFlow meetingId={currentMeeting.id} />
+        </div>
+      )}
+      {currentView === 'voting' && <VotingPage />}
+      {currentView === 'donations' && (
+        <div className="min-h-screen bg-slate-50">
+          <header className="bg-white shadow-sm border-b">
+            <div className="container mx-auto px-6 py-4">
+              <div className="flex items-center">
+                <button
+                  onClick={() => setCurrentView('dashboard')}
+                  className="text-slate-600 hover:text-slate-800 mr-4 transition-colors"
+                >
+                  ← Back to Dashboard
+                </button>
+                <div>
+                  <h1 className="text-xl font-semibold text-slate-800">Donation System</h1>
+                  <p className="text-slate-600 text-sm">Contribute to game funding and budgets</p>
+                </div>
+              </div>
+            </div>
+          </header>
+          <DonationSystem />
+        </div>
+      )}
     </div>
   );
 }

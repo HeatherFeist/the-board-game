@@ -38,7 +38,7 @@ export function useAuth() {
     if (data.user && !error) {
       // Create player profile
       await supabase.from('players').insert({
-        id: data.user.id,
+        auth_id: data.user.id,
         name,
       });
     }
