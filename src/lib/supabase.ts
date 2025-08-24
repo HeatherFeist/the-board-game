@@ -15,191 +15,291 @@ export type Database = {
       players: {
         Row: {
           id: string;
-          auth_id: string;
-          name: string;
-          role: string | null;
-          score: number;
-          progress: Record<string, any>;
+          name: string | null;
+          email: string | null;
+          total_coins: number;
+          games_played: number;
           created_at: string;
           updated_at: string;
         };
         Insert: {
-          auth_id: string;
+          id?: string;
+          name?: string | null;
+          email?: string | null;
+          total_coins?: number;
+          games_played?: number;
+        };
+        Update: {
+          name?: string | null;
+          email?: string | null;
+          total_coins?: number;
+          games_played?: number;
+        };
+      };
+      game_sessions: {
+        Row: {
+          id: string;
           name: string;
-          role?: string | null;
-          score?: number;
-          progress?: Record<string, any>;
+          status: 'setup' | 'donations' | 'meeting' | 'voting' | 'completed';
+          current_agenda_item: string;
+          total_donations: number;
+          prize_pool: number;
+          created_by: string | null;
+          created_at: string;
+          started_at: string | null;
+          ended_at: string | null;
+        };
+        Insert: {
+          name: string;
+          status?: 'setup' | 'donations' | 'meeting' | 'voting' | 'completed';
+          current_agenda_item?: string;
+          created_by?: string | null;
         };
         Update: {
           name?: string;
-          role?: string | null;
-          score?: number;
-          progress?: Record<string, any>;
+          status?: 'setup' | 'donations' | 'meeting' | 'voting' | 'completed';
+          current_agenda_item?: string;
+          started_at?: string | null;
+          ended_at?: string | null;
         };
       };
-      player_badges: {
+      session_participants: {
         Row: {
           id: string;
+          session_id: string;
           player_id: string;
-          badge: string;
-          awarded_at: string;
+          role_name: string;
+          joined_at: string;
         };
         Insert: {
+          session_id: string;
           player_id: string;
-          badge: string;
+          role_name: string;
         };
         Update: {
-          badge?: string;
+          role_name?: string;
         };
       };
-      scenarios: {
+      player_donations: {
         Row: {
           id: string;
-          role: string;
-          question: string;
-          options: Record<string, any>;
-          correct_answer: string | null;
-          meeting_id: string | null;
-          created_at: string;
+          session_id: string;
+          player_id: string;
+          amount: number;
+          donated_at: string;
         };
         Insert: {
-          role: string;
-          question: string;
-          options: Record<string, any>;
-          correct_answer?: string | null;
-          meeting_id?: string | null;
-        };
-        Update: {
-          role?: string;
-          question?: string;
-          options?: Record<string, any>;
-          correct_answer?: string | null;
-          meeting_id?: string | null;
-        };
-      };
-      scenario_responses: {
-        Row: {
-          id: string;
+          session_id: string;
           player_id: string;
-          scenario_id: string;
-          answer: string;
-          score: number;
-          created_at: string;
+          amount: number;
         };
-        Insert: {
+        Update: {
+          amount?: number;
+        };
+      };
+      player_budgets: {
+        Row: {
+          id: string;
+          session_id: string;
           player_id: string;
-          scenario_id: string;
-          answer: string;
-          score?: number;
-        };
-        Update: {
-          answer?: string;
-          score?: number;
-        };
-      };
-      peer_votes: {
-        Row: {
-          id: string;
-          voter_id: string;
-          response_id: string;
-          score: number;
-          created_at: string;
-        };
-        Insert: {
-          voter_id: string;
-          response_id: string;
-          score: number;
-        };
-        Update: {
-          score?: number;
-        };
-      };
-      meetings: {
-        Row: {
-          id: string;
-          title: string;
-          agenda: Record<string, any>;
-          minutes: Record<string, any>;
-          status: string;
-          created_at: string;
+          allocated_amount: number;
+          spent_amount: number;
           updated_at: string;
         };
         Insert: {
+          session_id: string;
+          player_id: string;
+          allocated_amount?: number;
+          spent_amount?: number;
+        };
+        Update: {
+          allocated_amount?: number;
+          spent_amount?: number;
+        };
+      };
+      meeting_minutes_summary: {
+        Row: {
+          id: string;
+          session_id: string;
+          secretary_id: string;
+          previous_minutes: string | null;
+          current_minutes: string | null;
+          minutes_approved: boolean;
+          approval_votes: Record<string, any>;
+          created_at: string;
+        };
+        Insert: {
+          session_id: string;
+          secretary_id: string;
+          previous_minutes?: string | null;
+          current_minutes?: string | null;
+          minutes_approved?: boolean;
+          approval_votes?: Record<string, any>;
+        };
+        Update: {
+          previous_minutes?: string | null;
+          current_minutes?: string | null;
+          minutes_approved?: boolean;
+          approval_votes?: Record<string, any>;
+        };
+      };
+      financial_summary: {
+        Row: {
+          id: string;
+          session_id: string;
+          treasurer_id: string;
+          total_donations: number;
+          prize_pool: number;
+          budget_per_player: number;
+          budget_approved: boolean;
+          budget_challenges: any[];
+          created_at: string;
+        };
+        Insert: {
+          session_id: string;
+          treasurer_id: string;
+          total_donations?: number;
+          prize_pool?: number;
+          budget_per_player?: number;
+          budget_approved?: boolean;
+          budget_challenges?: any[];
+        };
+        Update: {
+          total_donations?: number;
+          prize_pool?: number;
+          budget_per_player?: number;
+          budget_approved?: boolean;
+          budget_challenges?: any[];
+        };
+      };
+      motions: {
+        Row: {
+          id: string;
+          session_id: string;
+          proposed_by: string;
           title: string;
-          agenda?: Record<string, any>;
-          minutes?: Record<string, any>;
-          status?: string;
+          description: string;
+          motion_type: 'old_business' | 'new_business';
+          status: 'proposed' | 'voting' | 'approved' | 'rejected' | 'tabled';
+          votes: Record<string, any>;
+          created_at: string;
+        };
+        Insert: {
+          session_id: string;
+          proposed_by: string;
+          title: string;
+          description: string;
+          motion_type?: 'old_business' | 'new_business';
+          status?: 'proposed' | 'voting' | 'approved' | 'rejected' | 'tabled';
+          votes?: Record<string, any>;
         };
         Update: {
           title?: string;
-          agenda?: Record<string, any>;
-          minutes?: Record<string, any>;
-          status?: string;
+          description?: string;
+          motion_type?: 'old_business' | 'new_business';
+          status?: 'proposed' | 'voting' | 'approved' | 'rejected' | 'tabled';
+          votes?: Record<string, any>;
         };
       };
-      meeting_reflections: {
+      scenario_questions: {
         Row: {
           id: string;
-          player_id: string;
-          meeting_id: string;
-          reflection_text: string;
+          role_name: string;
+          question_text: string;
+          question_type: 'multiple_choice' | 'open_ended' | 'budget_allocation';
+          options: any[];
+          points_possible: number;
           created_at: string;
         };
         Insert: {
-          player_id: string;
-          meeting_id: string;
-          reflection_text: string;
+          role_name: string;
+          question_text: string;
+          question_type?: 'multiple_choice' | 'open_ended' | 'budget_allocation';
+          options?: any[];
+          points_possible?: number;
         };
         Update: {
-          reflection_text?: string;
+          role_name?: string;
+          question_text?: string;
+          question_type?: 'multiple_choice' | 'open_ended' | 'budget_allocation';
+          options?: any[];
+          points_possible?: number;
         };
       };
-      donations: {
+      scenario_answers: {
         Row: {
           id: string;
+          session_id: string;
           player_id: string;
-          amount: number;
-          created_at: string;
+          question_id: string;
+          answer_text: string;
+          budget_used: number;
+          submitted_at: string;
         };
         Insert: {
+          session_id: string;
           player_id: string;
-          amount: number;
+          question_id: string;
+          answer_text: string;
+          budget_used?: number;
         };
         Update: {
-          amount?: number;
+          answer_text?: string;
+          budget_used?: number;
         };
       };
-      budgets: {
+      answer_votes: {
         Row: {
           id: string;
-          category: string;
-          amount: number;
-          meeting_id: string | null;
+          answer_id: string;
+          voter_id: string;
+          coins_awarded: number;
+          feedback: string | null;
+          voted_at: string;
+        };
+        Insert: {
+          answer_id: string;
+          voter_id: string;
+          coins_awarded: number;
+          feedback?: string | null;
+        };
+        Update: {
+          coins_awarded?: number;
+          feedback?: string | null;
+        };
+      };
+      next_agenda: {
+        Row: {
+          id: string;
+          session_id: string;
+          agenda_items: string[];
+          updated_by: string;
           updated_at: string;
         };
         Insert: {
-          category: string;
-          amount?: number;
-          meeting_id?: string | null;
+          session_id: string;
+          agenda_items?: string[];
+          updated_by: string;
         };
         Update: {
-          category?: string;
-          amount?: number;
-          meeting_id?: string | null;
+          agenda_items?: string[];
+          updated_by?: string;
         };
       };
-      prize_pool: {
-        Row: {
-          id: string;
-          total_amount: number;
-          updated_at: string;
+    };
+    Functions: {
+      assign_random_role: {
+        Args: {
+          p_session_id: string;
+          p_player_id: string;
         };
-        Insert: {
-          total_amount?: number;
+        Returns: string;
+      };
+      recompute_budgets: {
+        Args: {
+          p_session_id: string;
         };
-        Update: {
-          total_amount?: number;
-        };
+        Returns: void;
       };
     };
   };

@@ -3,26 +3,27 @@ import { supabase, Database } from '../lib/supabase';
 import { useAuth } from './useAuth';
 
 type GameSession = Database['public']['Tables']['game_sessions']['Row'];
-type PlayerDonation = Database['public']['Tables']['player_donations']['Row'];
-type RoleBudget = Database['public']['Tables']['role_budgets']['Row'];
 type SessionParticipant = Database['public']['Tables']['session_participants']['Row'];
+type PlayerDonation = Database['public']['Tables']['player_donations']['Row'];
+type PlayerBudget = Database['public']['Tables']['player_budgets']['Row'];
 
 export function useGameSession() {
   const { user } = useAuth();
   const [currentSession, setCurrentSession] = useState<GameSession | null>(null);
-  const [donations, setDonations] = useState<PlayerDonation[]>([]);
-  const [roleBudgets, setRoleBudgets] = useState<RoleBudget[]>([]);
   const [participants, setParticipants] = useState<SessionParticipant[]>([]);
+  const [donations, setDonations] = useState<PlayerDonation[]>([]);
+  const [budgets, setBudgets] = useState<PlayerBudget[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
       loadGameSessionData();
     } else {
       setCurrentSession(null);
-      setDonations([]);
-      setRoleBudgets([]);
       setParticipants([]);
+      setDonations([]);
+      setBudgets([]);
       setLoading(false);
     }
   }, [user]);
@@ -31,46 +32,25 @@ export function useGameSession() {
     if (!user) return;
 
     try {
+      setError(null);
+
       // Load current active session
       const { data: sessionData, error: sessionError } = await supabase
         .from('game_sessions')
         .select('*')
-        .in('status', ['setup', 'donations', 'meeting'])
+        .in('status', ['setup', 'donations', 'meeting', 'voting'])
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
 
       if (sessionError && sessionError.code !== 'PGRST116') {
         console.error('Error loading session:', sessionError);
+        setError(sessionError.message);
         return;
       }
 
       if (sessionData) {
         setCurrentSession(sessionData);
-
-        // Load donations for this session
-        const { data: donationsData, error: donationsError } = await supabase
-          .from('player_donations')
-          .select('*')
-          .eq('session_id', sessionData.id);
-
-        if (donationsError) {
-          console.error('Error loading donations:', donationsError);
-        } else {
-          setDonations(donationsData || []);
-        }
-
-        // Load role budgets
-        const { data: budgetsData, error: budgetsError } = await supabase
-          .from('role_budgets')
-          .select('*')
-          .eq('session_id', sessionData.id);
-
-        if (budgetsError) {
-          console.error('Error loading budgets:', budgetsError);
-        } else {
-          setRoleBudgets(budgetsData || []);
-        }
 
         // Load participants
         const { data: participantsData, error: participantsError } = await supabase
@@ -80,12 +60,40 @@ export function useGameSession() {
 
         if (participantsError) {
           console.error('Error loading participants:', participantsError);
+          setError(participantsError.message);
         } else {
           setParticipants(participantsData || []);
         }
+
+        // Load donations
+        const { data: donationsData, error: donationsError } = await supabase
+          .from('player_donations')
+          .select('*')
+          .eq('session_id', sessionData.id);
+
+        if (donationsError) {
+          console.error('Error loading donations:', donationsError);
+          setError(donationsError.message);
+        } else {
+          setDonations(donationsData || []);
+        }
+
+        // Load budgets
+        const { data: budgetsData, error: budgetsError } = await supabase
+          .from('player_budgets')
+          .select('*')
+          .eq('session_id', sessionData.id);
+
+        if (budgetsError) {
+          console.error('Error loading budgets:', budgetsError);
+          setError(budgetsError.message);
+        } else {
+          setBudgets(budgetsData || []);
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading game session data:', error);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
@@ -94,136 +102,160 @@ export function useGameSession() {
   const createGameSession = async (name: string) => {
     if (!user) return null;
 
-    const { data, error } = await supabase
-      .from('game_sessions')
-      .insert({
-        name,
-        created_by: user.id,
-        status: 'setup'
-      })
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('game_sessions')
+        .insert({
+          name,
+          created_by: user.id,
+          status: 'setup'
+        })
+        .select()
+        .single();
 
-    if (error) {
+      if (error) {
+        console.error('Error creating game session:', error);
+        setError(error.message);
+        return null;
+      }
+
+      await loadGameSessionData();
+      return data;
+    } catch (error: any) {
       console.error('Error creating game session:', error);
+      setError(error.message);
       return null;
     }
-
-    await loadGameSessionData();
-    return data;
   };
 
-  const joinSession = async (sessionId: string, roleId: string) => {
-    if (!user) return false;
+  const joinSessionWithRandomRole = async (sessionId: string) => {
+    if (!user) return null;
 
-    const { error } = await supabase
-      .from('session_participants')
-      .insert({
-        session_id: sessionId,
-        player_id: user.id,
-        role_id: roleId
+    try {
+      const { data, error } = await supabase.rpc('assign_random_role', {
+        p_session_id: sessionId,
+        p_player_id: user.id
       });
 
-    if (error) {
-      console.error('Error joining session:', error);
-      return false;
-    }
+      if (error) {
+        console.error('Error joining session:', error);
+        setError(error.message);
+        return null;
+      }
 
-    await loadGameSessionData();
-    return true;
+      await loadGameSessionData();
+      return data;
+    } catch (error: any) {
+      console.error('Error joining session:', error);
+      setError(error.message);
+      return null;
+    }
   };
 
   const makeDonation = async (sessionId: string, amount: number) => {
     if (!user) return false;
 
-    const { error } = await supabase
-      .from('player_donations')
-      .insert({
-        session_id: sessionId,
-        player_id: user.id,
-        amount
-      });
+    try {
+      const { error } = await supabase
+        .from('player_donations')
+        .insert({
+          session_id: sessionId,
+          player_id: user.id,
+          amount
+        });
 
-    if (error) {
+      if (error) {
+        console.error('Error making donation:', error);
+        setError(error.message);
+        return false;
+      }
+
+      // Budgets will be recomputed automatically by trigger
+      await loadGameSessionData();
+      return true;
+    } catch (error: any) {
       console.error('Error making donation:', error);
+      setError(error.message);
       return false;
     }
-
-    // Update session totals
-    const totalDonations = donations.reduce((sum, d) => sum + d.amount, 0) + amount;
-    const prizePool = totalDonations * 0.5;
-    const operatingBudget = totalDonations - prizePool;
-
-    await supabase
-      .from('game_sessions')
-      .update({
-        total_donations: totalDonations,
-        prize_pool: prizePool
-      })
-      .eq('id', sessionId);
-
-    // Distribute budget among roles (assuming 9 roles)
-    const budgetPerRole = operatingBudget / 9;
-    const roleIds = [
-      'executive-director', 'treasurer', 'secretary', 'program-director',
-      'project-director', 'fundraising-director', 'grant-writer',
-      'marketing-communications', 'app-developer'
-    ];
-
-    for (const roleId of roleIds) {
-      await supabase
-        .from('role_budgets')
-        .upsert({
-          session_id: sessionId,
-          role_id: roleId,
-          allocated_budget: budgetPerRole
-        });
-    }
-
-    await loadGameSessionData();
-    return true;
   };
 
   const startDonationPhase = async (sessionId: string) => {
     if (!user) return false;
 
-    const { error } = await supabase
-      .from('game_sessions')
-      .update({
-        status: 'donations',
-        started_at: new Date().toISOString()
-      })
-      .eq('id', sessionId);
+    try {
+      const { error } = await supabase
+        .from('game_sessions')
+        .update({
+          status: 'donations',
+          started_at: new Date().toISOString()
+        })
+        .eq('id', sessionId);
 
-    if (error) {
+      if (error) {
+        console.error('Error starting donation phase:', error);
+        setError(error.message);
+        return false;
+      }
+
+      await loadGameSessionData();
+      return true;
+    } catch (error: any) {
       console.error('Error starting donation phase:', error);
+      setError(error.message);
       return false;
     }
-
-    await loadGameSessionData();
-    return true;
   };
 
   const startMeeting = async (sessionId: string) => {
     if (!user) return false;
 
-    const { error } = await supabase
-      .from('game_sessions')
-      .update({ status: 'meeting' })
-      .eq('id', sessionId);
+    try {
+      const { error } = await supabase
+        .from('game_sessions')
+        .update({ 
+          status: 'meeting',
+          current_agenda_item: 'call_to_order'
+        })
+        .eq('id', sessionId);
 
-    if (error) {
+      if (error) {
+        console.error('Error starting meeting:', error);
+        setError(error.message);
+        return false;
+      }
+
+      await loadGameSessionData();
+      return true;
+    } catch (error: any) {
       console.error('Error starting meeting:', error);
+      setError(error.message);
       return false;
     }
-
-    await loadGameSessionData();
-    return true;
   };
 
-  const getUserDonation = () => {
-    if (!user || !currentSession) return null;
-    return donations.find(d => d.player_id === user.id);
+  const advanceAgenda = async (sessionId: string, nextItem: string) => {
+    if (!user) return false;
+
+    try {
+      const { error } = await supabase
+        .from('game_sessions')
+        .update({ current_agenda_item: nextItem })
+        .eq('id', sessionId);
+
+      if (error) {
+        console.error('Error advancing agenda:', error);
+        setError(error.message);
+        return false;
+      }
+
+      await loadGameSessionData();
+      return true;
+    } catch (error: any) {
+      console.error('Error advancing agenda:', error);
+      setError(error.message);
+      return false;
+    }
   };
 
   const getUserParticipation = () => {
@@ -231,24 +263,32 @@ export function useGameSession() {
     return participants.find(p => p.player_id === user.id);
   };
 
-  const getRoleBudget = (roleId: string) => {
-    return roleBudgets.find(b => b.role_id === roleId);
+  const getUserDonation = () => {
+    if (!user || !currentSession) return null;
+    return donations.find(d => d.player_id === user.id);
+  };
+
+  const getUserBudget = () => {
+    if (!user || !currentSession) return null;
+    return budgets.find(b => b.player_id === user.id);
   };
 
   return {
     currentSession,
-    donations,
-    roleBudgets,
     participants,
+    donations,
+    budgets,
     loading,
+    error,
     createGameSession,
-    joinSession,
+    joinSessionWithRandomRole,
     makeDonation,
     startDonationPhase,
     startMeeting,
-    getUserDonation,
+    advanceAgenda,
     getUserParticipation,
-    getRoleBudget,
+    getUserDonation,
+    getUserBudget,
     refreshData: loadGameSessionData
   };
 }
