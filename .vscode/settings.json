@@ -1,0 +1,7 @@
+{
+  "github.copilot.enable": {
+    "*": true
+  },
+  "window.restoreWindows": "all",
+  "window.restoreFullscreen": true
+}
