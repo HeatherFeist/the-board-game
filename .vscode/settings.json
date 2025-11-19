@@ -1,0 +1,16 @@
+{
+  // Enable GitHub Copilot for all languages in this workspace
+  "github.copilot.enable": {
+    "*": true,
+    "plaintext": true,
+    "markdown": true,
+    "scminput": true
+  },
+  
+  // Additional Copilot settings for better experience
+  "github.copilot.editor.enableAutoCompletions": true,
+  
+  // Restore workspace windows and state
+  "window.restoreWindows": "all",
+  "window.restoreFullscreen": true
+}
